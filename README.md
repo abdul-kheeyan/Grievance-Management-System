@@ -19,7 +19,7 @@ Built in accordance with the **Unified Mentor** project brief for e-Governance a
 5. [Environment Variables (`.env`)](#-environment-variables-env)
 6. [Local Installation & Setup](#-local-installation--setup)
 7. [Demo Accounts](#-demo-accounts)
-8. [Deployment Guide (GitHub, Render & Vercel)](#-deployment-guide-github-render--vercel)
+8. [Deployment Guide (GitHub & Render)](#-deployment-guide-github--render)
 9. [Complete API Reference](#-complete-api-reference)
 10. [Security & Best Practices](#-security--best-practices)
 11. [License](#-license)
@@ -142,8 +142,6 @@ Create a `.env` file in the `frontend/` directory:
 VITE_API_BASE_URL=/api
 ```
 
-*(Note: When deploying frontend to Vercel/Netlify, set `VITE_API_BASE_URL` to your live backend API URL, e.g., `https://your-backend.onrender.com/api`)*.
-
 ---
 
 ## 🚀 Local Installation & Setup
@@ -203,43 +201,48 @@ The database seeder (`npm run seed`) provisions pre-configured accounts for test
 | **Citizen** | N/A | `priya@example.com` | `Citizen@123` |
 | **Citizen** | N/A | `amit@example.com` | `Citizen@123` |
 
-*Citizens can also self-register via the sign-up form on the login screen.*
-
 ---
 
-## 🌐 Deployment Guide (GitHub, Render & Vercel)
+## 🌐 Deployment Guide (GitHub & Render)
 
 ### Step 1: Push Code to GitHub
 ```bash
-git init
 git add .
-git commit -m "Initial commit: Nagrik Setu Grievance System"
-git remote add origin https://github.com/<YOUR_USERNAME>/grievance-management-system.git
-git branch -M main
+git commit -m "Configure deployment settings"
 git push -u origin main
 ```
-*(All `.env` files, `node_modules`, and local uploads are protected by `.gitignore`)*.
 
-### Step 2: Deploy Backend on Render.com
+### Step 2: Deploy Backend on Render.com (Web Service)
 1. Go to [Render.com](https://render.com) and click **New +** → **Web Service**.
 2. Connect your GitHub repository.
 3. Set **Root Directory**: `backend`.
 4. Set **Build Command**: `npm install`.
 5. Set **Start Command**: `npm start`.
 6. Add **Environment Variables**:
-   - `MONGODB_URI` = `<YOUR_MONGODB_ATLAS_CONNECTION_STRING>`
-   - `JWT_SECRET` = `<YOUR_SECRET_KEY>`
+   - `MONGODB_URI` = `mongodb+srv://hunterladdu145_db_user:g5BdhLt44E9W5FzK@cluster0.zjafbwy.mongodb.net/grievance_db?retryWrites=true&w=majority&appName=Cluster0`
+   - `JWT_SECRET` = `grievance_system_super_secret_jwt_key_2026`
    - `NODE_ENV` = `production`
-7. Click **Deploy**. Note down your service URL (e.g. `https://grievance-api.onrender.com`).
+7. Click **Deploy Web Service** and note your deployed URL (e.g. `https://grievance-backend.onrender.com`).
 
-### Step 3: Deploy Frontend on Vercel
-1. Go to [Vercel.com](https://vercel.com) and click **Add New...** → **Project**.
-2. Import your GitHub repository.
-3. Set **Root Directory**: `frontend`.
-4. Framework Preset: **Vite**.
-5. Add **Environment Variable**:
-   - `VITE_API_BASE_URL` = `https://grievance-api.onrender.com/api`
-6. Click **Deploy**.
+### Step 3: Deploy Frontend on Render.com (Static Site)
+1. On Render.com, click **New +** → **Static Site**.
+2. Connect your GitHub repository.
+3. Configure the fields as follows:
+   - **Name**: `grievance-system-frontend`
+   - **Branch**: `main`
+   - **Root Directory**: `frontend`
+   - **Build Command**: `npm install && npm run build`
+   - **Publish Directory**: `dist`
+4. Expand **Environment Variables** and add:
+   - **Key**: `VITE_API_BASE_URL`
+   - **Value**: `https://<YOUR_DEPLOYED_BACKEND_URL>.onrender.com/api`
+5. Click **Create Static Site**.
+6. **Configure SPA Rewrite (Crucial for page refreshes)**:
+   - Go to your static site's Render Dashboard → **Redirects/Rewrites**.
+   - Add rule:
+     - **Source**: `/*`
+     - **Destination**: `/index.html`
+     - **Action**: `Rewrite`
 
 ---
 
