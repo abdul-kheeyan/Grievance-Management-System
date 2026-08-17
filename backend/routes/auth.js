@@ -24,7 +24,7 @@ function publicUser(user) {
 // Register a new user. Citizens self-register; officer/admin accounts are
 // created the same way for this demo (in production these would be
 // provisioned by an admin), but we still require a department for officers.
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const { name, email, password, phone, role, department } = req.body;
 
   if (!name || !email || !password) {
@@ -56,6 +56,15 @@ router.post('/register', (req, res) => {
     createdAt: new Date().toISOString()
   };
   db.get('users').push(user).write();
+
+  if (db.isMongoConnected()) {
+    try {
+      await db.UserModel.updateOne({ id: user.id }, { $set: user }, { upsert: true });
+      console.log(`[mongo-direct-user-save] Registered user ${user.email} saved to MongoDB Atlas.`);
+    } catch (err) {
+      console.error('[mongo-direct-user-save-error]', err.message);
+    }
+  }
 
   const token = signToken(user);
   res.status(201).json({ token, user: publicUser(user) });

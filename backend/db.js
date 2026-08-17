@@ -82,38 +82,44 @@ let syncPaused = false;
 let lastMongoError = null;
 
 async function syncToMongoDB() {
-  if (!isMongoConnected || syncPaused) {
-    if (!isMongoConnected) {
-      console.log('[mongodb-sync-skipped] MongoDB is not connected.');
-    }
-    return;
-  }
+  if (!isMongoConnected || syncPaused) return;
   try {
     const users = lowDb.get('users').value() || [];
     const complaints = lowDb.get('complaints').value() || [];
     const notifications = lowDb.get('notifications').value() || [];
     const counters = lowDb.get('counters').value() || { complaint: 0 };
 
-    // Sync Users
+    // Sync Users per item safely
     for (const u of users) {
-      await UserModel.updateOne({ id: u.id }, { $set: u }, { upsert: true });
+      try {
+        await UserModel.updateOne({ id: u.id }, { $set: u }, { upsert: true });
+      } catch (err) {
+        console.error(`[mongo-user-sync-err: ${u.email}]`, err.message);
+      }
     }
 
-    // Sync Complaints
+    // Sync Complaints per item safely
     for (const c of complaints) {
-      await ComplaintModel.updateOne({ id: c.id }, { $set: c }, { upsert: true });
+      try {
+        await ComplaintModel.updateOne({ id: c.id }, { $set: c }, { upsert: true });
+      } catch (err) {
+        console.error(`[mongo-complaint-sync-err: ${c.id}]`, err.message);
+      }
     }
 
-    // Sync Notifications
+    // Sync Notifications per item safely
     for (const n of notifications) {
-      await NotificationModel.updateOne({ id: n.id }, { $set: n }, { upsert: true });
+      try {
+        await NotificationModel.updateOne({ id: n.id }, { $set: n }, { upsert: true });
+      } catch (err) {
+        console.error(`[mongo-notif-sync-err: ${n.id}]`, err.message);
+      }
     }
 
     // Sync Counter
     await CounterModel.updateOne({ _id: 'complaint' }, { $set: { seq: counters.complaint || 0 } }, { upsert: true });
 
     lastMongoError = null;
-    console.log(`[mongodb-sync-success] Synced ${users.length} users, ${complaints.length} complaints to MongoDB Atlas.`);
   } catch (err) {
     lastMongoError = err.message;
     console.error('[mongodb-sync-error]', err.message);
@@ -183,7 +189,7 @@ async function getDbStatus() {
   }
   return {
     isMongoConnected,
-    mongooseReadyState: mongoose.connection.readyState, // 1 = connected, 0 = disconnected
+    mongooseReadyState: mongoose.connection.readyState,
     hasMongoUri: Boolean(process.env.MONGODB_URI),
     lastMongoError,
     counts: {
