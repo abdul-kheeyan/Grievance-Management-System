@@ -23,9 +23,9 @@ lowDb.defaults({
 
 // Mongoose Schemas & Models for MongoDB Atlas
 const userSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
+  id: { type: String, required: true },
   name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
+  email: { type: String, required: true },
   password: { type: String, required: true },
   phone: String,
   role: { type: String, required: true },
@@ -34,7 +34,7 @@ const userSchema = new mongoose.Schema({
 }, { strict: false });
 
 const complaintSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
+  id: { type: String, required: true },
   complaintId: { type: String, required: true },
   userId: { type: String, required: true },
   userName: String,
@@ -57,7 +57,7 @@ const complaintSchema = new mongoose.Schema({
 }, { strict: false });
 
 const notificationSchema = new mongoose.Schema({
-  id: { type: String, required: true, unique: true },
+  id: { type: String, required: true },
   userId: String,
   title: String,
   message: String,
@@ -79,35 +79,43 @@ const CounterModel = mongoose.models.Counter || mongoose.model('Counter', counte
 
 let isMongoConnected = false;
 let syncPaused = false;
+let lastMongoError = null;
 
 async function syncToMongoDB() {
-  if (!isMongoConnected || syncPaused) return;
+  if (!isMongoConnected || syncPaused) {
+    if (!isMongoConnected) {
+      console.log('[mongodb-sync-skipped] MongoDB is not connected.');
+    }
+    return;
+  }
   try {
     const users = lowDb.get('users').value() || [];
     const complaints = lowDb.get('complaints').value() || [];
     const notifications = lowDb.get('notifications').value() || [];
     const counters = lowDb.get('counters').value() || { complaint: 0 };
 
-    const userIds = users.map(u => u.id);
-    await UserModel.deleteMany({ id: { $nin: userIds } });
+    // Sync Users
     for (const u of users) {
-      await UserModel.updateOne({ id: u.id }, u, { upsert: true });
+      await UserModel.updateOne({ id: u.id }, { $set: u }, { upsert: true });
     }
 
-    const complaintIds = complaints.map(c => c.id);
-    await ComplaintModel.deleteMany({ id: { $nin: complaintIds } });
+    // Sync Complaints
     for (const c of complaints) {
-      await ComplaintModel.updateOne({ id: c.id }, c, { upsert: true });
+      await ComplaintModel.updateOne({ id: c.id }, { $set: c }, { upsert: true });
     }
 
-    const notificationIds = notifications.map(n => n.id);
-    await NotificationModel.deleteMany({ id: { $nin: notificationIds } });
+    // Sync Notifications
     for (const n of notifications) {
-      await NotificationModel.updateOne({ id: n.id }, n, { upsert: true });
+      await NotificationModel.updateOne({ id: n.id }, { $set: n }, { upsert: true });
     }
 
-    await CounterModel.updateOne({ _id: 'complaint' }, { seq: counters.complaint || 0 }, { upsert: true });
+    // Sync Counter
+    await CounterModel.updateOne({ _id: 'complaint' }, { $set: { seq: counters.complaint || 0 } }, { upsert: true });
+
+    lastMongoError = null;
+    console.log(`[mongodb-sync-success] Synced ${users.length} users, ${complaints.length} complaints to MongoDB Atlas.`);
   } catch (err) {
+    lastMongoError = err.message;
     console.error('[mongodb-sync-error]', err.message);
   }
 }
@@ -132,8 +140,9 @@ async function loadFromMongoDB() {
     if (mongoCounter) {
       lowDb.set('counters.complaint', mongoCounter.seq).write();
     }
-    console.log('[mongodb] Data synchronized from MongoDB Atlas.');
+    console.log(`[mongodb-load-success] Loaded ${mongoUsers.length} users, ${mongoComplaints.length} complaints from MongoDB Atlas.`);
   } catch (err) {
+    lastMongoError = err.message;
     console.error('[mongodb-load-error]', err.message);
   }
 }
@@ -142,19 +151,52 @@ async function connectMongoDB() {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
     console.log('[mongodb] MONGODB_URI not set. Running in local file database mode.');
+    isMongoConnected = false;
     return false;
   }
   try {
     await mongoose.connect(uri);
     isMongoConnected = true;
+    lastMongoError = null;
     console.log('[mongodb] Connected to MongoDB Atlas Cloud Database successfully!');
     await loadFromMongoDB();
     return true;
   } catch (err) {
+    isMongoConnected = false;
+    lastMongoError = err.message;
     console.error('[mongodb-connection-failed]', err.message);
     console.log('[mongodb] Fallback to local file database mode.');
     return false;
   }
+}
+
+async function getDbStatus() {
+  let mongoUserCount = 0;
+  let mongoComplaintCount = 0;
+  if (isMongoConnected) {
+    try {
+      mongoUserCount = await UserModel.countDocuments();
+      mongoComplaintCount = await ComplaintModel.countDocuments();
+    } catch (e) {
+      console.error('[db-status-count-error]', e.message);
+    }
+  }
+  return {
+    isMongoConnected,
+    mongooseReadyState: mongoose.connection.readyState, // 1 = connected, 0 = disconnected
+    hasMongoUri: Boolean(process.env.MONGODB_URI),
+    lastMongoError,
+    counts: {
+      mongoAtlas: {
+        users: mongoUserCount,
+        complaints: mongoComplaintCount
+      },
+      lowDbLocal: {
+        users: (lowDb.get('users').value() || []).length,
+        complaints: (lowDb.get('complaints').value() || []).length
+      }
+    }
+  };
 }
 
 const db = {
@@ -163,7 +205,7 @@ const db = {
     const originalWrite = chain.write;
     chain.write = function (...args) {
       const res = originalWrite.apply(this, args);
-      syncToMongoDB();
+      syncToMongoDB().catch(err => console.error('[bg-sync-error]', err.message));
       return res;
     };
     return chain;
@@ -173,7 +215,7 @@ const db = {
     const originalWrite = chain.write;
     chain.write = function (...args) {
       const res = originalWrite.apply(this, args);
-      syncToMongoDB();
+      syncToMongoDB().catch(err => console.error('[bg-sync-error]', err.message));
       return res;
     };
     return chain;
@@ -186,6 +228,7 @@ const db = {
   NotificationModel,
   CounterModel,
   syncToMongoDB,
+  getDbStatus,
   pauseSync: () => { syncPaused = true; },
   resumeSync: () => { syncPaused = false; },
   isMongoConnected: () => isMongoConnected

@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const db = require('./db');
 const authRoutes = require('./routes/auth');
 const complaintRoutes = require('./routes/complaints');
 const userRoutes = require('./routes/users');
@@ -27,11 +28,21 @@ app.get('/', (req, res) => {
     name: 'Nagrik Setu API Server',
     status: 'online',
     version: '1.0.0',
-    health: '/api/health'
+    health: '/api/health',
+    dbStatus: '/api/db-status'
   });
 });
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'grievance-system-api', dbConnected: true }));
+
+app.get('/api/db-status', async (req, res) => {
+  const status = await db.getDbStatus();
+  res.json(status);
+});
+app.get('/db-status', async (req, res) => {
+  const status = await db.getDbStatus();
+  res.json(status);
+});
 
 // Support both /api/* and direct route endpoints for seamless compatibility
 app.use('/api/auth', authRoutes);
