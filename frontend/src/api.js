@@ -1,6 +1,14 @@
 import axios from 'axios';
 
-const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api' });
+let rawBase = (import.meta.env.VITE_API_BASE_URL || '/api').trim();
+if (rawBase !== '/api') {
+  rawBase = rawBase.replace(/\/+$/, '');
+  if (!rawBase.endsWith('/api')) {
+    rawBase = `${rawBase}/api`;
+  }
+}
+
+const api = axios.create({ baseURL: rawBase });
 
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('gs_token');

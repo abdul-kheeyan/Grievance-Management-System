@@ -33,11 +33,21 @@ app.get('/', (req, res) => {
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'grievance-system-api', dbConnected: true }));
 
+// Support both /api/* and direct route endpoints for seamless compatibility
 app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
+
 app.use('/api/complaints', complaintRoutes);
+app.use('/complaints', complaintRoutes);
+
 app.use('/api/users', userRoutes);
+app.use('/users', userRoutes);
+
 app.use('/api/analytics', analyticsRoutes);
+app.use('/analytics', analyticsRoutes);
+
 app.use('/api/notifications', notificationRoutes);
+app.use('/notifications', notificationRoutes);
 
 // Central error handler (e.g. multer file-size/type errors)
 app.use((err, req, res, next) => {
