@@ -21,6 +21,16 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Root endpoint welcome message
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Nagrik Setu API Server',
+    status: 'online',
+    version: '1.0.0',
+    health: '/api/health'
+  });
+});
+
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'grievance-system-api', dbConnected: true }));
 
 app.use('/api/auth', authRoutes);
